@@ -28,4 +28,4 @@ Open `index.html` in any modern browser — that's it.
 
 ## License
 
-MIT
+Public domain — see [UNLICENSE](UNLICENSE)
