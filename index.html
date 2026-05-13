@@ -492,16 +492,19 @@
 
   #preview table {
     width: 100%;
+    min-width: 0;
     border-collapse: collapse;
     margin: 0;
     font-size: .9rem;
+    table-layout: auto;
+    word-break: break-word;
   }
 
   #preview th, #preview td {
     padding: 8px 12px;
     border: 1px solid var(--border);
     text-align: left;
-    white-space: nowrap;
+    overflow-wrap: break-word;
   }
 
   #preview th { background: var(--bg-surface); font-weight: 600; }
