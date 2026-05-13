@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!--
+  CSP applied programmatically after CDN scripts load (see bottom of file).
+  This avoids file:// protocol issues while still sanitising rendered content.
+-->
+<title>MD Viewer</title>
+
+<!-- Marked.js v9 (stable callback-style renderer API) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.6/marked.min.js"></script>
+<!-- highlight.js — Syntax highlighting -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<!-- DOMPurify — XSS sanitisation -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
+
+<!-- highlight.js light theme (will be toggled via class) -->
+<link id="hljs-light" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css">
+<link id="hljs-dark" rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" disabled>
+
+<style>
+  /* ───────── CSS Variables / Theming ───────── */
+  :root {
+    --bg:           #faf8f5;
+    --bg-surface:   #f3f0ec;
+    --bg-elevated:  #faf8f5;
+    --text:         #3b3733;
+    --text-muted:   #8a8480;
+    --border:       #e6e1db;
+    --accent:       #5a7fb5;
+    --accent-hover: #486da0;
+    --code-bg:      #f0ede8;
+    --shadow:       0 1px 3px rgba(80,60,40,.06);
+    --shadow-lg:    0 4px 16px rgba(80,60,40,.08);
+    --radius:       8px;
+    --transition:   .25s cubic-bezier(.4,0,.2,1);
+    --scrollbar-thumb: #d4cfc9;
+    --scrollbar-track: transparent;
+    --drop-zone-bg: rgba(90,127,181,.05);
+    --drop-zone-border: var(--accent);
+    --toc-active-bg: rgba(90,127,181,.08);
+    --blockquote-border: #ddd8d2;
+    --blockquote-bg: #f3f0ec;
+    --table-stripe: #f5f2ee;
+    --kbd-bg: #f0ede8;
+    --kbd-border: #ddd8d2;
+  }
+
+  [data-theme="dark"] {
+    --bg:           #09090b;
+    --bg-surface:   #0f0f12;
+    --bg-elevated:  #16161a;
+    --text:         #dcdcde;
+    --text-muted:   #787880;
+    --border:       #1e1e24;
+    --accent:       #58a6ff;
+    --accent-hover: #79c0ff;
+    --code-bg:      #0f0f12;
+    --shadow:       0 1px 3px rgba(0,0,0,.5);
+    --shadow-lg:    0 4px 16px rgba(0,0,0,.55);
+    --scrollbar-thumb: #2c2c32;
+    --drop-zone-bg: rgba(88,166,255,.05);
+    --toc-active-bg: rgba(88,166,255,.08);
+    --blockquote-border: #1e1e24;
+    --blockquote-bg: #0f0f12;
+    --table-stripe: #0c0c0f;
+    --kbd-bg: #16161a;
+    --kbd-border: #1e1e24;
+  }
+
+  /* ───────── Reset & Base ───────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { font-size: 15px; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    transition: background var(--transition), color var(--transition);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+  /* ───────── Top Bar ───────── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 52px;
+    min-height: 52px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    transition: background var(--transition), border-color var(--transition);
+    z-index: 100;
+    user-select: none;
+  }
+
+  .topbar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo {
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -.02em;
+    color: var(--text);
+  }
+
+  .logo span { color: var(--accent); }
+
+  .filename {
+    font-size: .82rem;
+    color: var(--text-muted);
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .topbar-right {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* ───────── Buttons ───────── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 6px 12px;
+    font-size: .82rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+    line-height: 1;
+  }
+
+  .btn:hover {
+    color: var(--text);
+    background: var(--bg-elevated);
+    border-color: var(--text-muted);
+  }
+
+  .btn.active {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--toc-active-bg);
+  }
+
+  .btn-icon {
+    padding: 6px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+  }
+
+  .btn-icon:hover {
+    background: var(--bg-elevated);
+    border: none;
+  }
+
+  .btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .stats {
+    font-size: .75rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: 12px;
+  }
+
+  /* ───────── Layout ───────── */
+  .main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    position: relative;
+  }
+
+  /* ───────── TOC Sidebar ───────── */
+  .toc-sidebar {
+    width: 0;
+    overflow: hidden;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    transition: width var(--transition), background var(--transition);
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .toc-sidebar.open { width: 240px; }
+
+  .toc-header {
+    padding: 14px 16px 10px;
+    font-size: .72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+  }
+
+  .toc-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 8px 16px;
+  }
+
+  .toc-item {
+    display: block;
+    padding: 5px 10px;
+    font-size: .82rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all .15s ease;
+    line-height: 1.4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .toc-item:hover { color: var(--text); background: var(--toc-active-bg); }
+  .toc-item.active { color: var(--accent); background: var(--toc-active-bg); font-weight: 500; }
+
+  .toc-item[data-level="2"] { padding-left: 22px; }
+  .toc-item[data-level="3"] { padding-left: 34px; font-size: .78rem; }
+  .toc-item[data-level="4"] { padding-left: 46px; font-size: .75rem; }
+  .toc-item[data-level="5"] { padding-left: 56px; font-size: .73rem; }
+  .toc-item[data-level="6"] { padding-left: 66px; font-size: .73rem; }
+
+  /* ───────── Split Panels ───────── */
+  .panels {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+  }
+
+  .panel {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+    transition: flex var(--transition);
+  }
+
+  .panel-label {
+    padding: 8px 20px;
+    font-size: .7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+
+  /* ───────── Editor ───────── */
+  .editor-wrap { flex: 1; overflow: hidden; position: relative; }
+
+  #editor {
+    width: 100%;
+    height: 100%;
+    padding: 24px;
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+    font-size: .88rem;
+    line-height: 1.7;
+    color: var(--text);
+    background: var(--bg);
+    border: none;
+    outline: none;
+    resize: none;
+    tab-size: 2;
+    transition: background var(--transition), color var(--transition);
+  }
+
+  /* ───────── Divider ───────── */
+  .divider {
+    width: 1px;
+    background: var(--border);
+    cursor: col-resize;
+    position: relative;
+    flex-shrink: 0;
+    transition: background .15s;
+    z-index: 10;
+  }
+
+  .divider::after {
+    content: '';
+    position: absolute;
+    top: 0; bottom: 0; left: -3px; right: -3px;
+  }
+
+  .divider:hover, .divider.dragging { background: var(--accent); }
+
+  /* ───────── Preview ───────── */
+  .preview-wrap { flex: 1; overflow-y: auto; overflow-x: hidden; }
+
+  #preview {
+    padding: 32px;
+    max-width: 800px;
+    margin: 0 auto;
+    line-height: 1.7;
+    word-wrap: break-word;
+  }
+
+  /* ───────── View modes ───────── */
+  .main.editor-only .panel.preview-panel,
+  .main.preview-only .panel.editor-panel,
+  .main.editor-only .divider,
+  .main.preview-only .divider { display: none; }
+
+  /* ───────── Drop Zone ───────── */
+  .drop-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--drop-zone-bg);
+    backdrop-filter: blur(4px);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .drop-overlay.visible { display: flex; }
+
+  .drop-box {
+    border: 2px dashed var(--drop-zone-border);
+    border-radius: 16px;
+    padding: 48px 64px;
+    text-align: center;
+    background: var(--bg-elevated);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .drop-box svg { width: 48px; height: 48px; stroke: var(--accent); margin-bottom: 12px; }
+  .drop-box p { font-size: .95rem; color: var(--text-muted); margin-top: 4px; }
+
+  /* ───────── Welcome screen ───────── */
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 16px;
+    opacity: .7;
+    text-align: center;
+    padding: 24px;
+  }
+
+  .welcome svg { width: 56px; height: 56px; stroke: var(--text-muted); opacity: .5; }
+  .welcome p { font-size: .9rem; color: var(--text-muted); line-height: 1.6; }
+  .welcome .hint { font-size: .78rem; }
+
+  /* ───────── Markdown Rendered Styles ───────── */
+  #preview h1, #preview h2, #preview h3, #preview h4, #preview h5, #preview h6 {
+    font-weight: 650;
+    line-height: 1.3;
+    margin-top: 1.8em;
+    margin-bottom: .6em;
+    color: var(--text);
+    scroll-margin-top: 80px;
+  }
+  #preview h1 { font-size: 1.85rem; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+  #preview h2 { font-size: 1.45rem; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+  #preview h3 { font-size: 1.2rem; }
+  #preview h4 { font-size: 1.05rem; }
+  #preview h5 { font-size: .95rem; }
+  #preview h6 { font-size: .85rem; color: var(--text-muted); }
+
+  #preview p { margin-bottom: 1em; }
+
+  #preview a { color: var(--accent); text-decoration: none; }
+  #preview a:hover { text-decoration: underline; }
+
+  #preview strong { font-weight: 650; }
+
+  #preview blockquote {
+    margin: 1em 0;
+    padding: .6em 1em;
+    border-left: 3px solid var(--blockquote-border);
+    background: var(--blockquote-bg);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    color: var(--text-muted);
+  }
+
+  #preview blockquote p:last-child { margin-bottom: 0; }
+
+  #preview ul, #preview ol { margin: .6em 0 1em 1.6em; }
+  #preview li { margin-bottom: .3em; }
+  #preview li > ul, #preview li > ol { margin-top: .3em; margin-bottom: 0; }
+
+  #preview code {
+    font-family: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+    font-size: .88em;
+    background: var(--code-bg);
+    padding: .15em .4em;
+    border-radius: 4px;
+  }
+
+  #preview pre {
+    margin: 1em 0;
+    padding: 0;
+    background: var(--code-bg);
+    border-radius: var(--radius);
+    overflow: hidden;
+    position: relative;
+  }
+
+  #preview pre code {
+    display: block;
+    padding: 16px 20px;
+    overflow-x: auto;
+    background: transparent;
+    font-size: .84rem;
+    line-height: 1.55;
+  }
+
+  .code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 12px 6px 16px;
+    background: var(--border);
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
+  .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    font-size: .7rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+
+  .copy-btn:hover { color: var(--text); border-color: var(--text-muted); }
+  .copy-btn svg { width: 12px; height: 12px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  #preview img {
+    max-width: 100%;
+    border-radius: var(--radius);
+    margin: .5em 0;
+  }
+
+  #preview hr {
+    border: none;
+    height: 1px;
+    background: var(--border);
+    margin: 2em 0;
+  }
+
+  #preview .table-wrap {
+    overflow-x: auto;
+    margin: 1em 0;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+  }
+
+  #preview table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    font-size: .9rem;
+  }
+
+  #preview th, #preview td {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  #preview th { background: var(--bg-surface); font-weight: 600; }
+  #preview tr:nth-child(even) td { background: var(--table-stripe); }
+
+  #preview input[type="checkbox"] {
+    margin-right: 6px;
+    accent-color: var(--accent);
+  }
+
+  #preview kbd {
+    font-family: inherit;
+    font-size: .82em;
+    padding: 2px 6px;
+    background: var(--kbd-bg);
+    border: 1px solid var(--kbd-border);
+    border-radius: 4px;
+    box-shadow: 0 1px 0 var(--kbd-border);
+  }
+
+  /* GitHub-style alerts */
+  .md-alert {
+    margin: 1em 0;
+    padding: .6em 1em;
+    border-left: 3px solid;
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+  .md-alert-title { font-weight: 600; font-size: .88rem; margin-bottom: .3em; display: flex; align-items: center; gap: 6px; }
+  .md-alert-note   { border-color: #58a6ff; background: rgba(88,166,255,.07); }
+  .md-alert-note .md-alert-title { color: #58a6ff; }
+  .md-alert-tip    { border-color: #3fb950; background: rgba(63,185,80,.07); }
+  .md-alert-tip .md-alert-title { color: #3fb950; }
+  .md-alert-important { border-color: #a371f7; background: rgba(163,113,247,.07); }
+  .md-alert-important .md-alert-title { color: #a371f7; }
+  .md-alert-warning { border-color: #d29922; background: rgba(210,153,34,.07); }
+  .md-alert-warning .md-alert-title { color: #d29922; }
+  .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
+  .md-alert-caution .md-alert-title { color: #f85149; }
+
+  /* Print styles */
+  @media print {
+    .topbar, .toc-sidebar, .panel.editor-panel, .divider { display: none !important; }
+    .panel.preview-panel { flex: 1 !important; }
+    body { background: white; color: black; }
+    #preview { max-width: 100%; padding: 0; }
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .toc-sidebar.open { width: 200px; }
+    .stats { display: none; }
+    .filename { max-width: 120px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════ Top Bar ═══════ -->
+<header class="topbar">
+  <div class="topbar-left">
+    <div class="logo">MD<span>.</span></div>
+    <span class="filename" id="filename"></span>
+  </div>
+  <div class="topbar-right">
+    <div class="stats" id="stats"></div>
+
+    <!-- View mode buttons -->
+    <button class="btn btn-icon" id="btnToc" title="Table of contents">
+      <svg viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+    </button>
+    <button class="btn" id="btnEditor" title="Editor only">
+      <svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
+    </button>
+    <button class="btn active" id="btnSplit" title="Split view">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+    </button>
+    <button class="btn" id="btnPreview" title="Preview only">
+      <svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+    </button>
+
+    <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
+
+    <!-- Open file -->
+    <button class="btn" id="btnOpen" title="Open .md file">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      Open
+    </button>
+
+    <!-- Theme toggle -->
+    <button class="btn btn-icon" id="btnTheme" title="Toggle dark mode">
+      <svg id="iconSun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg id="iconMoon" viewBox="0 0 24 24" style="display:none"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ═══════ Main Content ═══════ -->
+<div class="main" id="mainArea">
+
+  <!-- TOC Sidebar -->
+  <aside class="toc-sidebar" id="tocSidebar">
+    <div class="toc-header">Contents</div>
+    <nav class="toc-list" id="tocList"></nav>
+  </aside>
+
+  <!-- Panels -->
+  <div class="panels" id="panels">
+    <!-- Editor -->
+    <div class="panel editor-panel" id="editorPanel">
+      <div class="panel-label">Editor</div>
+      <div class="editor-wrap">
+        <textarea id="editor" spellcheck="false" placeholder="Start typing Markdown here…"></textarea>
+      </div>
+    </div>
+
+    <!-- Resize Divider -->
+    <div class="divider" id="divider"></div>
+
+    <!-- Preview -->
+    <div class="panel preview-panel" id="previewPanel">
+      <div class="panel-label">Preview</div>
+      <div class="preview-wrap" id="previewWrap">
+        <div id="preview">
+          <div class="welcome">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            <p>Drop a <strong>.md</strong> file here, click <strong>Open</strong>, or start typing in the editor.</p>
+            <p class="hint">Supports GitHub-flavored Markdown with syntax highlighting</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════ Drop Overlay ═══════ -->
+<div class="drop-overlay" id="dropOverlay">
+  <div class="drop-box">
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="1.5"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <p>Drop your Markdown file</p>
+  </div>
+</div>
+
+<!-- Hidden file input -->
+<input type="file" id="fileInput" accept=".md,.markdown,.mdown,.mkd,.mkdn,.mdwn,.txt" style="display:none">
+
+<script>
+(function() {
+  'use strict';
+
+  // ─── Elements ───
+  const editor       = document.getElementById('editor');
+  const preview      = document.getElementById('preview');
+  const previewWrap  = document.getElementById('previewWrap');
+  const tocSidebar   = document.getElementById('tocSidebar');
+  const tocList      = document.getElementById('tocList');
+  const mainArea     = document.getElementById('mainArea');
+  const panels       = document.getElementById('panels');
+  const divider      = document.getElementById('divider');
+  const editorPanel  = document.getElementById('editorPanel');
+  const previewPanel = document.getElementById('previewPanel');
+  const dropOverlay  = document.getElementById('dropOverlay');
+  const fileInput    = document.getElementById('fileInput');
+  const filenameEl   = document.getElementById('filename');
+  const statsEl      = document.getElementById('stats');
+
+  const btnToc     = document.getElementById('btnToc');
+  const btnEditor  = document.getElementById('btnEditor');
+  const btnSplit   = document.getElementById('btnSplit');
+  const btnPreview = document.getElementById('btnPreview');
+  const btnOpen    = document.getElementById('btnOpen');
+  const btnTheme   = document.getElementById('btnTheme');
+  const iconSun    = document.getElementById('iconSun');
+  const iconMoon   = document.getElementById('iconMoon');
+
+  // ─── State ───
+  let currentView = 'split'; // 'editor' | 'split' | 'preview'
+  let renderTimeout = null;
+  let scrollSyncEnabled = true;
+
+  // ─── Marked Configuration (v9 callback-style API) ───
+  const renderer = new marked.Renderer();
+
+  // Add IDs to headings for TOC linking
+  renderer.heading = function(text, level) {
+    const stripped = text.replace(/<[^>]*>/g, '');
+    const id = stripped.toLowerCase().replace(/[^\w]+/g, '-').replace(/(^-|-$)/g, '');
+    return '<h' + level + ' id="' + id + '">' + text + '</h' + level + '>\n';
+  };
+
+  // Code blocks with language label + copy button
+  renderer.code = function(code, lang) {
+    const language = (lang || '').split(/\s/)[0];
+    let highlighted;
+    try {
+      if (language && hljs.getLanguage(language)) {
+        highlighted = hljs.highlight(code, { language }).value;
+      } else {
+        highlighted = hljs.highlightAuto(code).value;
+      }
+    } catch (e) {
+      highlighted = escapeHtml(code);
+    }
+    const label = language || 'code';
+    return '<pre><div class="code-header"><span>' + escapeHtml(label) + '</span><button class="copy-btn" onclick="copyCode(this)" title="Copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg> Copy</button></div><code class="hljs">' + highlighted + '</code></pre>\n';
+  };
+
+  // Task list checkboxes
+  renderer.listitem = function(text) {
+    if (/^\s*\[x\]/i.test(text)) {
+      text = text.replace(/^\s*\[x\]\s*/i, '');
+      return '<li style="list-style:none;margin-left:-1.2em"><input type="checkbox" disabled checked> ' + text + '</li>\n';
+    }
+    if (/^\s*\[ \]/.test(text)) {
+      text = text.replace(/^\s*\[ \]\s*/, '');
+      return '<li style="list-style:none;margin-left:-1.2em"><input type="checkbox" disabled> ' + text + '</li>\n';
+    }
+    return '<li>' + text + '</li>\n';
+  };
+
+  // Wrap tables in a scrollable container
+  renderer.table = function(header, body) {
+    return '<div class="table-wrap"><table><thead>' + header + '</thead><tbody>' + body + '</tbody></table></div>\n';
+  };
+
+  marked.setOptions({
+    renderer: renderer,
+    gfm: true,
+    breaks: false,
+    pedantic: false,
+  });
+
+  // ─── DOMPurify Configuration ───
+  const PURIFY_CONFIG = {
+    ALLOWED_TAGS: [
+      'h1','h2','h3','h4','h5','h6','p','br','hr','strong','em','del','s','sub','sup',
+      'a','img','ul','ol','li','blockquote','pre','code','table','thead','tbody','tr','th','td',
+      'div','span','input','kbd','abbr','details','summary','mark','small','figure','figcaption',
+      'dl','dt','dd','button','svg','path','rect','line','polyline','circle'
+    ],
+    ALLOWED_ATTR: [
+      'href','src','alt','title','class','id','target','rel','type','checked','disabled',
+      'style','data-level','data-lang','onclick','viewBox','d','x','y','width','height',
+      'rx','ry','x1','y1','x2','y2','cx','cy','r','fill','stroke','stroke-width',
+      'stroke-linecap','stroke-linejoin','points'
+    ],
+    ALLOW_DATA_ATTR: false,
+    ADD_ATTR: ['target'],
+    FORBID_TAGS: ['script','iframe','object','embed','form','style','link','meta'],
+    FORBID_ATTR: ['onerror','onload','onfocus','onblur','onmouseover','onmouseout'],
+  };
+
+  // Hook: make links open in new tab with noopener
+  DOMPurify.addHook('afterSanitizeAttributes', function(node) {
+    if (node.tagName === 'A') {
+      node.setAttribute('target', '_blank');
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+
+  // ─── GitHub Alerts Extension ───
+  function processAlerts(html) {
+    const alertTypes = { NOTE: 'note', TIP: 'tip', IMPORTANT: 'important', WARNING: 'warning', CAUTION: 'caution' };
+    const icons = {
+      note: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>',
+      tip: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M9 21c0 .55.45 1 1 1h4c.55 0 1-.45 1-1v-1H9v1zm3-19C8.14 2 5 5.14 5 9c0 2.38 1.19 4.47 3 5.74V17c0 .55.45 1 1 1h6c.55 0 1-.45 1-1v-2.26c1.81-1.27 3-3.36 3-5.74 0-3.86-3.14-7-7-7z"/></svg>',
+      important: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"/></svg>',
+      warning: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>',
+      caution: '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 5h2v6h-2V7zm0 8h2v2h-2v-2z"/></svg>',
+    };
+
+    for (const [key, type] of Object.entries(alertTypes)) {
+      const regex = new RegExp(
+        `<blockquote>\\s*<p>\\[!${key}\\]\\s*<br>?\\s*([\\s\\S]*?)<\\/p>\\s*<\\/blockquote>`,
+        'gi'
+      );
+      html = html.replace(regex, (_, content) =>
+        `<div class="md-alert md-alert-${type}"><div class="md-alert-title">${icons[type]} ${key.charAt(0) + key.slice(1).toLowerCase()}</div><p>${content.trim()}</p></div>`
+      );
+      // Also handle single-line variant
+      const regex2 = new RegExp(
+        `<blockquote>\\s*<p>\\[!${key}\\]([\\s\\S]*?)<\\/p>\\s*<\\/blockquote>`,
+        'gi'
+      );
+      html = html.replace(regex2, (_, content) =>
+        `<div class="md-alert md-alert-${type}"><div class="md-alert-title">${icons[type]} ${key.charAt(0) + key.slice(1).toLowerCase()}</div><p>${content.trim()}</p></div>`
+      );
+    }
+    return html;
+  }
+
+  // ─── Render ───
+  function render() {
+    const md = editor.value;
+    if (!md.trim()) {
+      preview.innerHTML = `<div class="welcome">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <p>Drop a <strong>.md</strong> file here, click <strong>Open</strong>, or start typing in the editor.</p>
+        <p class="hint">Supports GitHub-flavored Markdown with syntax highlighting</p>
+      </div>`;
+      tocList.innerHTML = '';
+      statsEl.textContent = '';
+      return;
+    }
+
+    let html = marked.parse(md);
+    html = processAlerts(html);
+    html = DOMPurify.sanitize(html, PURIFY_CONFIG);
+    preview.innerHTML = html;
+
+    buildToc();
+    updateStats(md);
+  }
+
+  function debouncedRender() {
+    clearTimeout(renderTimeout);
+    renderTimeout = setTimeout(render, 120);
+  }
+
+  // ─── TOC ───
+  function buildToc() {
+    const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    tocList.innerHTML = '';
+    headings.forEach(h => {
+      const level = parseInt(h.tagName[1]);
+      const item = document.createElement('a');
+      item.className = 'toc-item';
+      item.dataset.level = level;
+      item.textContent = h.textContent;
+      item.title = h.textContent;
+      item.addEventListener('click', () => {
+        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      tocList.appendChild(item);
+    });
+  }
+
+  // Active TOC tracking
+  function updateActiveToc() {
+    const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
+    const tocItems = tocList.querySelectorAll('.toc-item');
+    if (!headings.length) return;
+
+    let active = 0;
+    const scrollTop = previewWrap.scrollTop;
+    headings.forEach((h, i) => {
+      if (h.offsetTop - 100 <= scrollTop) active = i;
+    });
+
+    tocItems.forEach((item, i) => {
+      item.classList.toggle('active', i === active);
+    });
+  }
+
+  previewWrap.addEventListener('scroll', updateActiveToc);
+
+  // ─── Stats ───
+  function updateStats(md) {
+    const text = md.replace(/[#*`~\[\]()>_\-|]/g, '').trim();
+    const words = text ? text.split(/\s+/).length : 0;
+    const chars = text.length;
+    const readMin = Math.max(1, Math.ceil(words / 230));
+    statsEl.innerHTML = `<span>${words} words</span><span>${chars} chars</span><span>${readMin} min read</span>`;
+  }
+
+  // ─── Scroll Sync ───
+  editor.addEventListener('scroll', () => {
+    if (!scrollSyncEnabled || currentView !== 'split') return;
+    const pct = editor.scrollTop / (editor.scrollHeight - editor.clientHeight || 1);
+    previewWrap.scrollTop = pct * (previewWrap.scrollHeight - previewWrap.clientHeight);
+  });
+
+  // ─── Theme ───
+  function setTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    const isDark = theme === 'dark';
+    iconSun.style.display  = isDark ? 'none' : '';
+    iconMoon.style.display = isDark ? '' : 'none';
+    document.getElementById('hljs-light').disabled = isDark;
+    document.getElementById('hljs-dark').disabled  = !isDark;
+    localStorage.setItem('md-viewer-theme', theme);
+  }
+
+  // Init theme from system preference or saved
+  const savedTheme = localStorage.getItem('md-viewer-theme');
+  if (savedTheme) {
+    setTheme(savedTheme);
+  } else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    setTheme('dark');
+  }
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', e => {
+    if (!localStorage.getItem('md-viewer-theme-manual')) {
+      setTheme(e.matches ? 'dark' : 'light');
+    }
+  });
+
+  btnTheme.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    localStorage.setItem('md-viewer-theme-manual', '1');
+  });
+
+  // ─── View Modes ───
+  function setView(view) {
+    currentView = view;
+    mainArea.classList.remove('editor-only', 'preview-only');
+    if (view === 'editor') mainArea.classList.add('editor-only');
+    if (view === 'preview') mainArea.classList.add('preview-only');
+
+    [btnEditor, btnSplit, btnPreview].forEach(b => b.classList.remove('active'));
+    if (view === 'editor') btnEditor.classList.add('active');
+    if (view === 'split')  btnSplit.classList.add('active');
+    if (view === 'preview') btnPreview.classList.add('active');
+  }
+
+  btnEditor.addEventListener('click', () => setView('editor'));
+  btnSplit.addEventListener('click', () => setView('split'));
+  btnPreview.addEventListener('click', () => setView('preview'));
+
+  // TOC toggle
+  btnToc.addEventListener('click', () => {
+    tocSidebar.classList.toggle('open');
+    btnToc.classList.toggle('active');
+  });
+
+  // ─── File Open ───
+  btnOpen.addEventListener('click', () => fileInput.click());
+
+  fileInput.addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) loadFile(file);
+    fileInput.value = '';
+  });
+
+  function loadFile(file) {
+    // Security: validate file type
+    const validExts = ['.md', '.markdown', '.mdown', '.mkd', '.mkdn', '.mdwn', '.txt'];
+    const ext = '.' + file.name.split('.').pop().toLowerCase();
+    if (!validExts.includes(ext)) {
+      alert('Please select a Markdown file (.md, .markdown, .txt)');
+      return;
+    }
+    // Security: limit file size (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File too large. Maximum size is 10MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = e => {
+      editor.value = e.target.result;
+      filenameEl.textContent = file.name;
+      filenameEl.title = file.name;
+      render();
+    };
+    reader.readAsText(file);
+  }
+
+  // ─── Drag & Drop ───
+  let dragCounter = 0;
+
+  document.addEventListener('dragenter', e => {
+    e.preventDefault();
+    dragCounter++;
+    if (dragCounter === 1) dropOverlay.classList.add('visible');
+  });
+
+  document.addEventListener('dragleave', e => {
+    e.preventDefault();
+    dragCounter--;
+    if (dragCounter <= 0) {
+      dragCounter = 0;
+      dropOverlay.classList.remove('visible');
+    }
+  });
+
+  document.addEventListener('dragover', e => e.preventDefault());
+
+  document.addEventListener('drop', e => {
+    e.preventDefault();
+    dragCounter = 0;
+    dropOverlay.classList.remove('visible');
+    const file = e.dataTransfer.files[0];
+    if (file) loadFile(file);
+  });
+
+  // ─── Divider Resize ───
+  let isDragging = false;
+
+  divider.addEventListener('mousedown', e => {
+    isDragging = true;
+    divider.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const rect = panels.getBoundingClientRect();
+    const pct = ((e.clientX - rect.left) / rect.width) * 100;
+    const clamped = Math.min(80, Math.max(20, pct));
+    editorPanel.style.flex = `0 0 ${clamped}%`;
+    previewPanel.style.flex = `0 0 ${100 - clamped}%`;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!isDragging) return;
+    isDragging = false;
+    divider.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  });
+
+  // ─── Editor Events ───
+  editor.addEventListener('input', debouncedRender);
+
+  // Tab key support in editor
+  editor.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const start = editor.selectionStart;
+      const end = editor.selectionEnd;
+      editor.value = editor.value.substring(0, start) + '  ' + editor.value.substring(end);
+      editor.selectionStart = editor.selectionEnd = start + 2;
+      debouncedRender();
+    }
+  });
+
+  // ─── Copy Code ───
+  window.copyCode = function(btn) {
+    const code = btn.closest('pre').querySelector('code');
+    const text = code.textContent;
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btn.innerHTML;
+      btn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" fill="none" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> Copied!';
+      setTimeout(() => { btn.innerHTML = original; }, 1800);
+    });
+  };
+
+  // ─── Keyboard Shortcuts ───
+  document.addEventListener('keydown', e => {
+    // Ctrl/Cmd + O — Open file
+    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+      e.preventDefault();
+      fileInput.click();
+    }
+    // Ctrl/Cmd + Shift + D — Toggle dark mode
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'D') {
+      e.preventDefault();
+      btnTheme.click();
+    }
+    // Ctrl/Cmd + \ — Toggle TOC
+    if ((e.ctrlKey || e.metaKey) && e.key === '\\') {
+      e.preventDefault();
+      btnToc.click();
+    }
+  });
+
+  // ─── Helper ───
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  // ─── Load sample content on first use ───
+  const SAMPLE = `# Welcome to MD Viewer
+
+A clean, minimal Markdown viewer that runs entirely in your browser.
+
+## Features
+
+- **Live Preview** — see your Markdown rendered as you type
+- **Drag & Drop** — load any \`.md\` file by dragging it in
+- **Syntax Highlighting** — code blocks with language detection
+- **Dark Mode** — true night mode, easy on the eyes
+- **Table of Contents** — auto-generated from your headings
+- **Secure** — all content sanitized with DOMPurify
+
+## Code Example
+
+\`\`\`javascript
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+console.log(fibonacci(10)); // 55
+\`\`\`
+
+\`\`\`python
+def quicksort(arr):
+    if len(arr) <= 1:
+        return arr
+    pivot = arr[len(arr) // 2]
+    left = [x for x in arr if x < pivot]
+    middle = [x for x in arr if x == pivot]
+    right = [x for x in arr if x > pivot]
+    return quicksort(left) + middle + quicksort(right)
+\`\`\`
+
+## Table
+
+| Feature | Status |
+|---------|--------|
+| GFM Support | ✓ |
+| Syntax Highlighting | ✓ |
+| Dark Mode | ✓ |
+| Task Lists | ✓ |
+| Drag & Drop | ✓ |
+
+## Task List
+
+- [x] Build the editor
+- [x] Add live preview
+- [x] Implement dark mode
+- [ ] Add more features
+
+## Blockquote
+
+> "Simplicity is the ultimate sophistication."
+> — Leonardo da Vinci
+
+## Keyboard Shortcuts
+
+- \`Ctrl+O\` — Open file
+- \`Ctrl+Shift+D\` — Toggle dark mode
+- \`Ctrl+\\\` — Toggle table of contents
+
+---
+
+*Drop a \`.md\` file or start editing to see your content here.*`;
+
+  editor.value = SAMPLE;
+  render();
+
+})();
+</script>
+</body>
+</html>
