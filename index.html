@@ -637,6 +637,11 @@
       Open
     </button>
 
+    <!-- Export HTML -->
+    <button class="btn btn-icon" id="btnExport" title="Export as HTML">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    </button>
+
     <!-- Theme toggle -->
     <button class="btn btn-icon" id="btnTheme" title="Toggle dark mode">
       <svg id="iconSun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
@@ -719,6 +724,7 @@
   const btnSplit   = document.getElementById('btnSplit');
   const btnPreview = document.getElementById('btnPreview');
   const btnOpen    = document.getElementById('btnOpen');
+  const btnExport  = document.getElementById('btnExport');
   const btnTheme   = document.getElementById('btnTheme');
   const iconSun    = document.getElementById('iconSun');
   const iconMoon   = document.getElementById('iconMoon');
@@ -1089,6 +1095,21 @@
       setTimeout(() => { btn.innerHTML = original; }, 1800);
     });
   };
+
+  // ─── Export HTML ───
+  btnExport.addEventListener('click', () => {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const bg = isDark ? '#09090b' : '#faf8f5';
+    const text = isDark ? '#dcdcde' : '#3b3733';
+    const html = '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8">\n<meta name="viewport" content="width=device-width, initial-scale=1.0">\n<title>' + (filenameEl.textContent || 'Markdown Export') + '</title>\n<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/' + (isDark ? 'github-dark' : 'github') + '.min.css">\n<style>\nbody { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 32px; line-height: 1.7; background: ' + bg + '; color: ' + text + '; }\npre { background: ' + (isDark ? '#0f0f12' : '#f0ede8') + '; border-radius: 8px; padding: 16px; overflow-x: auto; }\ncode { font-family: "SF Mono", "Fira Code", monospace; font-size: .88em; }\np code { background: ' + (isDark ? '#0f0f12' : '#f0ede8') + '; padding: .15em .4em; border-radius: 4px; }\ntable { width: 100%; border-collapse: collapse; }\nth, td { padding: 8px 12px; border: 1px solid ' + (isDark ? '#1e1e24' : '#e6e1db') + '; text-align: left; }\nblockquote { border-left: 3px solid ' + (isDark ? '#1e1e24' : '#ddd8d2') + '; margin: 1em 0; padding: .6em 1em; color: ' + (isDark ? '#787880' : '#8a8480') + '; }\nimg { max-width: 100%; }\na { color: ' + (isDark ? '#58a6ff' : '#5a7fb5') + '; }\nh1, h2 { border-bottom: 1px solid ' + (isDark ? '#1e1e24' : '#e6e1db') + '; padding-bottom: .3em; }\n</style>\n</head>\n<body>\n' + preview.innerHTML + '\n</body>\n</html>';
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (filenameEl.textContent || 'export').replace(/\.\w+$/, '') + '.html';
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
   // ─── Keyboard Shortcuts ───
   document.addEventListener('keydown', e => {
