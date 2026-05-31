@@ -255,7 +255,27 @@
     text-transform: uppercase;
     letter-spacing: .06em;
     color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
+
+  .toc-num-toggle {
+    font-size: .65rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 2px 6px;
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 500;
+    transition: all .15s;
+  }
+
+  .toc-num-toggle:hover { color: var(--text); border-color: var(--text-muted); }
+  .toc-num-toggle.active { color: var(--accent); border-color: var(--accent); }
 
   .toc-list {
     flex: 1;
@@ -655,7 +675,7 @@
 
   <!-- TOC Sidebar -->
   <aside class="toc-sidebar" id="tocSidebar">
-    <div class="toc-header">Contents</div>
+    <div class="toc-header">Contents <button class="toc-num-toggle" id="btnTocNum" title="Toggle numbering">#</button></div>
     <nav class="toc-list" id="tocList"></nav>
   </aside>
 
@@ -732,6 +752,7 @@
   // ─── State ───
   let currentView = 'split'; // 'editor' | 'split' | 'preview'
   let renderTimeout = null;
+  let tocNumbered = false;
   let scrollSyncEnabled = true;
 
   // ─── Marked Configuration (v9 callback-style API) ───
@@ -877,12 +898,27 @@
   function buildToc() {
     const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
     tocList.innerHTML = '';
+    const counters = [0, 0, 0, 0, 0, 0];
+    let minLevel = 6;
+    headings.forEach(h => { minLevel = Math.min(minLevel, parseInt(h.tagName[1])); });
+
     headings.forEach(h => {
       const level = parseInt(h.tagName[1]);
+      const idx = level - 1;
+      counters[idx]++;
+      for (let i = idx + 1; i < 6; i++) counters[i] = 0;
+
+      let number = '';
+      if (tocNumbered) {
+        const parts = [];
+        for (let i = minLevel - 1; i <= idx; i++) parts.push(counters[i] || 1);
+        number = parts.join('.') + ' ';
+      }
+
       const item = document.createElement('a');
       item.className = 'toc-item';
       item.dataset.level = level;
-      item.textContent = h.textContent;
+      item.textContent = number + h.textContent;
       item.title = h.textContent;
       item.addEventListener('click', () => {
         h.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -890,6 +926,13 @@
       tocList.appendChild(item);
     });
   }
+
+  const btnTocNum = document.getElementById('btnTocNum');
+  btnTocNum.addEventListener('click', () => {
+    tocNumbered = !tocNumbered;
+    btnTocNum.classList.toggle('active', tocNumbered);
+    buildToc();
+  });
 
   // Active TOC tracking
   function updateActiveToc() {
