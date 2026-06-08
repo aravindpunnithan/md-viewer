@@ -601,6 +601,44 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── Zen Mode ───────── */
+  .zen-mode .topbar,
+  .zen-mode .toc-sidebar,
+  .zen-mode .divider,
+  .zen-mode .panel.preview-panel,
+  .zen-mode .panel-label { display: none !important; }
+
+  .zen-mode .panel.editor-panel { flex: 1 !important; }
+
+  .zen-mode #editor {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 48px 24px;
+    font-size: 1rem;
+    line-height: 1.8;
+  }
+
+  .zen-exit {
+    display: none;
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 200;
+    padding: 6px 14px;
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity .3s;
+  }
+
+  .zen-mode .zen-exit { display: block; }
+  .zen-exit:hover, .zen-mode:hover .zen-exit { opacity: 1; }
+
   /* Print styles */
   @media print {
     .topbar, .toc-sidebar, .panel.editor-panel, .divider { display: none !important; }
@@ -655,6 +693,11 @@
     <button class="btn" id="btnOpen" title="Open .md file">
       <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       Open
+    </button>
+
+    <!-- Zen mode -->
+    <button class="btn btn-icon" id="btnZen" title="Zen mode">
+      <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
     </button>
 
     <!-- Export HTML -->
@@ -715,6 +758,9 @@
     <p>Drop your Markdown file</p>
   </div>
 </div>
+
+<!-- Zen mode exit button -->
+<button class="zen-exit" id="zenExit">Exit Zen</button>
 
 <!-- Hidden file input -->
 <input type="file" id="fileInput" accept=".md,.markdown,.mdown,.mkd,.mkdn,.mdwn,.txt" style="display:none">
@@ -1139,6 +1185,17 @@
     });
   };
 
+  // ─── Zen Mode ───
+  const btnZen = document.getElementById('btnZen');
+  const zenExit = document.getElementById('zenExit');
+
+  function toggleZen(on) {
+    document.body.classList.toggle('zen-mode', on);
+  }
+
+  btnZen.addEventListener('click', () => toggleZen(true));
+  zenExit.addEventListener('click', () => toggleZen(false));
+
   // ─── Export HTML ───
   btnExport.addEventListener('click', () => {
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
@@ -1156,6 +1213,11 @@
 
   // ─── Keyboard Shortcuts ───
   document.addEventListener('keydown', e => {
+    // Escape — exit zen mode
+    if (e.key === 'Escape' && document.body.classList.contains('zen-mode')) {
+      toggleZen(false);
+      return;
+    }
     // Ctrl/Cmd + O — Open file
     if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
       e.preventDefault();
