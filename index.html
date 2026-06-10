@@ -601,6 +601,28 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── TOC Search ───────── */
+  .toc-search {
+    padding: 0 8px 8px;
+  }
+
+  .toc-search input {
+    width: 100%;
+    padding: 5px 8px;
+    font-size: .78rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    outline: none;
+    transition: border-color .15s;
+  }
+
+  .toc-search input:focus { border-color: var(--accent); }
+  .toc-search input::placeholder { color: var(--text-muted); }
+
+  .toc-item.toc-hidden { display: none; }
+
   /* ───────── Zen Mode ───────── */
   .zen-mode .topbar,
   .zen-mode .toc-sidebar,
@@ -719,6 +741,7 @@
   <!-- TOC Sidebar -->
   <aside class="toc-sidebar" id="tocSidebar">
     <div class="toc-header">Contents <button class="toc-num-toggle" id="btnTocNum" title="Toggle numbering">#</button></div>
+    <div class="toc-search"><input type="text" id="tocSearch" placeholder="Filter headings…"></div>
     <nav class="toc-list" id="tocList"></nav>
   </aside>
 
@@ -1184,6 +1207,15 @@
       setTimeout(() => { btn.innerHTML = original; }, 1800);
     });
   };
+
+  // ─── TOC Search ───
+  const tocSearchInput = document.getElementById('tocSearch');
+  tocSearchInput.addEventListener('input', () => {
+    const q = tocSearchInput.value.toLowerCase();
+    tocList.querySelectorAll('.toc-item').forEach(item => {
+      item.classList.toggle('toc-hidden', q && !item.textContent.toLowerCase().includes(q));
+    });
+  });
 
   // ─── Zen Mode ───
   const btnZen = document.getElementById('btnZen');
