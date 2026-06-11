@@ -601,6 +601,39 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── Formatting Toolbar ───────── */
+  .fmt-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 4px 12px;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .fmt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 26px;
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s;
+    font-family: inherit;
+  }
+
+  .fmt-btn:hover { color: var(--text); background: var(--bg-elevated); }
+  .fmt-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 2; }
+
+  .fmt-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+
   /* ───────── TOC Search ───────── */
   .toc-search {
     padding: 0 8px 8px;
@@ -750,6 +783,17 @@
     <!-- Editor -->
     <div class="panel editor-panel" id="editorPanel">
       <div class="panel-label">Editor</div>
+      <div class="fmt-bar" id="fmtBar">
+        <button class="fmt-btn" data-fmt="bold" title="Bold (Ctrl+B)"><b>B</b></button>
+        <button class="fmt-btn" data-fmt="italic" title="Italic (Ctrl+I)"><i>I</i></button>
+        <button class="fmt-btn" data-fmt="strike" title="Strikethrough"><s>S</s></button>
+        <button class="fmt-btn" data-fmt="code" title="Inline code"><svg viewBox="0 0 24 24"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg></button>
+        <div class="fmt-sep"></div>
+        <button class="fmt-btn" data-fmt="heading" title="Heading">H</button>
+        <button class="fmt-btn" data-fmt="link" title="Link"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg></button>
+        <button class="fmt-btn" data-fmt="ul" title="Bullet list"><svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+        <button class="fmt-btn" data-fmt="quote" title="Blockquote"><svg viewBox="0 0 24 24"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3z"/></svg></button>
+      </div>
       <div class="editor-wrap">
         <textarea id="editor" spellcheck="false" placeholder="Start typing Markdown here…"></textarea>
       </div>
@@ -1208,6 +1252,44 @@
     });
   };
 
+  // ─── Formatting Toolbar ───
+  const fmtBar = document.getElementById('fmtBar');
+  const fmtActions = {
+    bold: { before: '**', after: '**', placeholder: 'bold text' },
+    italic: { before: '*', after: '*', placeholder: 'italic text' },
+    strike: { before: '~~', after: '~~', placeholder: 'strikethrough' },
+    code: { before: '`', after: '`', placeholder: 'code' },
+    heading: { before: '### ', after: '', placeholder: 'Heading', line: true },
+    link: { before: '[', after: '](url)', placeholder: 'link text' },
+    ul: { before: '- ', after: '', placeholder: 'list item', line: true },
+    quote: { before: '> ', after: '', placeholder: 'quote', line: true },
+  };
+
+  function applyFormat(fmt) {
+    const action = fmtActions[fmt];
+    if (!action) return;
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const selected = editor.value.substring(start, end) || action.placeholder;
+    let insertion;
+    if (action.line) {
+      const lineStart = editor.value.lastIndexOf('\n', start - 1) + 1;
+      insertion = editor.value.substring(0, lineStart) + action.before + editor.value.substring(lineStart, start) + selected + action.after + editor.value.substring(end);
+    } else {
+      insertion = editor.value.substring(0, start) + action.before + selected + action.after + editor.value.substring(end);
+    }
+    editor.value = insertion;
+    editor.focus();
+    editor.selectionStart = start + action.before.length;
+    editor.selectionEnd = start + action.before.length + selected.length;
+    debouncedRender();
+  }
+
+  fmtBar.addEventListener('click', e => {
+    const btn = e.target.closest('[data-fmt]');
+    if (btn) applyFormat(btn.dataset.fmt);
+  });
+
   // ─── TOC Search ───
   const tocSearchInput = document.getElementById('tocSearch');
   tocSearchInput.addEventListener('input', () => {
@@ -1245,6 +1327,16 @@
 
   // ─── Keyboard Shortcuts ───
   document.addEventListener('keydown', e => {
+    // Ctrl/Cmd + B — Bold
+    if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+      e.preventDefault();
+      applyFormat('bold');
+    }
+    // Ctrl/Cmd + I — Italic
+    if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+      e.preventDefault();
+      applyFormat('italic');
+    }
     // Escape — exit zen mode
     if (e.key === 'Escape' && document.body.classList.contains('zen-mode')) {
       toggleZen(false);
