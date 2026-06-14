@@ -601,6 +601,39 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── Font Size Control ───────── */
+  .font-size-ctrl {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+  }
+
+  .font-size-ctrl button {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all .15s;
+  }
+
+  .font-size-ctrl button:hover { color: var(--text); border-color: var(--text-muted); }
+
+  .font-size-ctrl span {
+    font-size: .68rem;
+    color: var(--text-muted);
+    min-width: 28px;
+    text-align: center;
+  }
+
   /* ───────── Formatting Toolbar ───────── */
   .fmt-bar {
     display: flex;
@@ -782,7 +815,14 @@
   <div class="panels" id="panels">
     <!-- Editor -->
     <div class="panel editor-panel" id="editorPanel">
-      <div class="panel-label">Editor</div>
+      <div class="panel-label" style="display:flex;align-items:center;justify-content:space-between">
+        Editor
+        <div class="font-size-ctrl">
+          <button id="fontDec" title="Decrease font size">−</button>
+          <span id="fontSizeLabel">14px</span>
+          <button id="fontInc" title="Increase font size">+</button>
+        </div>
+      </div>
       <div class="fmt-bar" id="fmtBar">
         <button class="fmt-btn" data-fmt="bold" title="Bold (Ctrl+B)"><b>B</b></button>
         <button class="fmt-btn" data-fmt="italic" title="Italic (Ctrl+I)"><i>I</i></button>
@@ -1251,6 +1291,25 @@
       setTimeout(() => { btn.innerHTML = original; }, 1800);
     });
   };
+
+  // ─── Font Size Control ───
+  let editorFontSize = 14;
+  const fontSizeLabel = document.getElementById('fontSizeLabel');
+  const fontDec = document.getElementById('fontDec');
+  const fontInc = document.getElementById('fontInc');
+
+  function setEditorFontSize(size) {
+    editorFontSize = Math.min(24, Math.max(10, size));
+    editor.style.fontSize = editorFontSize + 'px';
+    fontSizeLabel.textContent = editorFontSize + 'px';
+    localStorage.setItem('md-viewer-font-size', editorFontSize);
+  }
+
+  fontDec.addEventListener('click', () => setEditorFontSize(editorFontSize - 1));
+  fontInc.addEventListener('click', () => setEditorFontSize(editorFontSize + 1));
+
+  const savedFontSize = localStorage.getItem('md-viewer-font-size');
+  if (savedFontSize) setEditorFontSize(parseInt(savedFontSize));
 
   // ─── Formatting Toolbar ───
   const fmtBar = document.getElementById('fmtBar');
