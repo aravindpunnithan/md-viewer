@@ -601,6 +601,20 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── Footnotes ───────── */
+  .footnotes-section {
+    margin-top: 2em;
+    padding-top: 1em;
+    border-top: 1px solid var(--border);
+    font-size: .88rem;
+  }
+
+  .footnotes-section ol { margin-left: 1.2em; }
+  .footnotes-section li { margin-bottom: .4em; color: var(--text-muted); }
+  .footnote-ref { font-size: .75em; vertical-align: super; color: var(--accent); text-decoration: none; }
+  .footnote-ref:hover { text-decoration: underline; }
+  .footnote-backref { color: var(--accent); text-decoration: none; margin-left: 4px; }
+
   /* ───────── Font Size Control ───────── */
   .font-size-ctrl {
     display: flex;
@@ -966,7 +980,7 @@
       'h1','h2','h3','h4','h5','h6','p','br','hr','strong','em','del','s','sub','sup',
       'a','img','ul','ol','li','blockquote','pre','code','table','thead','tbody','tr','th','td',
       'div','span','input','kbd','abbr','details','summary','mark','small','figure','figcaption',
-      'dl','dt','dd','button','svg','path','rect','line','polyline','circle'
+      'dl','dt','dd','button','svg','path','rect','line','polyline','circle','section','sup'
     ],
     ALLOWED_ATTR: [
       'href','src','alt','title','class','id','target','rel','type','checked','disabled',
@@ -1019,6 +1033,31 @@
     return html;
   }
 
+  // ─── Footnote Processor ───
+  function processFootnotes(md) {
+    const defs = {};
+    const defRegex = /^\[\^(\w+)\]:\s*(.+)$/gm;
+    let match;
+    while ((match = defRegex.exec(md)) !== null) {
+      defs[match[1]] = match[2];
+    }
+    let body = md.replace(/^\[\^(\w+)\]:\s*(.+)$/gm, '');
+    const order = [];
+    body = body.replace(/\[\^(\w+)\]/g, (m, id) => {
+      if (!defs[id]) return m;
+      if (!order.includes(id)) order.push(id);
+      const num = order.indexOf(id) + 1;
+      return '<sup><a class="footnote-ref" href="#fn-' + id + '" id="fnref-' + id + '">' + num + '</a></sup>';
+    });
+    if (order.length === 0) return { body: body, footnotesHtml: '' };
+    let fnHtml = '<section class="footnotes-section"><ol>';
+    order.forEach((id) => {
+      fnHtml += '<li id="fn-' + id + '">' + escapeHtml(defs[id]) + ' <a class="footnote-backref" href="#fnref-' + id + '" title="Back">\u21a9</a></li>';
+    });
+    fnHtml += '</ol></section>';
+    return { body: body, footnotesHtml: fnHtml };
+  }
+
   // ─── Render ───
   function render() {
     const md = editor.value;
@@ -1033,10 +1072,12 @@
       return;
     }
 
-    let html = marked.parse(md);
+    const { body: fnBody, footnotesHtml } = processFootnotes(md);
+
+    let html = marked.parse(fnBody);
     html = processAlerts(html);
     html = DOMPurify.sanitize(html, PURIFY_CONFIG);
-    preview.innerHTML = html;
+    preview.innerHTML = html + footnotesHtml;
 
     buildToc();
     updateStats(md);
