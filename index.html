@@ -601,6 +601,27 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── Toast ───────── */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 10px 18px;
+    font-size: .82rem;
+    color: var(--text);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    z-index: 500;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: all .25s;
+    pointer-events: none;
+  }
+
+  .toast.visible { opacity: 1; transform: translateY(0); }
+
   /* ───────── Front-matter ───────── */
   .frontmatter-table {
     margin-bottom: 1.5em;
@@ -811,6 +832,11 @@
       Open
     </button>
 
+    <!-- Copy rendered HTML -->
+    <button class="btn btn-icon" id="btnCopyHtml" title="Copy rendered HTML">
+      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+    </button>
+
     <!-- Zen mode -->
     <button class="btn btn-icon" id="btnZen" title="Zen mode">
       <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 00-2 2v3m18 0V5a2 2 0 00-2-2h-3m0 18h3a2 2 0 002-2v-3M3 16v3a2 2 0 002 2h3"/></svg>
@@ -893,6 +919,9 @@
     <p>Drop your Markdown file</p>
   </div>
 </div>
+
+<!-- Toast notification -->
+<div class="toast" id="toast"></div>
 
 <!-- Zen mode exit button -->
 <button class="zen-exit" id="zenExit">Exit Zen</button>
@@ -1374,6 +1403,22 @@
       setTimeout(() => { btn.innerHTML = original; }, 1800);
     });
   };
+
+  // ─── Toast helper ───
+  const toastEl = document.getElementById('toast');
+  let toastTimer;
+  function showToast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove('visible'), 2000);
+  }
+
+  // ─── Copy Rendered HTML ───
+  const btnCopyHtml = document.getElementById('btnCopyHtml');
+  btnCopyHtml.addEventListener('click', () => {
+    navigator.clipboard.writeText(preview.innerHTML).then(() => showToast('HTML copied to clipboard'));
+  });
 
   // ─── Font Size Control ───
   let editorFontSize = 14;
