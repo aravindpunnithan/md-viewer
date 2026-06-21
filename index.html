@@ -1076,6 +1076,53 @@
     return html;
   }
 
+  // ─── Mermaid (lazy-loaded) ───
+  let mermaidLoaded = false;
+  let mermaidReady = false;
+
+  function loadMermaid(callback) {
+    if (mermaidLoaded) { if (mermaidReady) callback(); return; }
+    mermaidLoaded = true;
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js';
+    s.onload = () => {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      window.mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', securityLevel: 'strict' });
+      mermaidReady = true;
+      callback();
+    };
+    document.head.appendChild(s);
+  }
+
+  function renderMermaidBlocks() {
+    const blocks = preview.querySelectorAll('pre code.hljs');
+    let hasMermaid = false;
+    blocks.forEach(block => {
+      const pre = block.parentElement;
+      const header = pre.querySelector('.code-header span');
+      if (header && header.textContent.trim().toLowerCase() === 'mermaid') hasMermaid = true;
+    });
+    if (!hasMermaid) return;
+    loadMermaid(() => {
+      let mid = 0;
+      blocks.forEach(block => {
+        const pre = block.parentElement;
+        const header = pre.querySelector('.code-header span');
+        if (!header || header.textContent.trim().toLowerCase() !== 'mermaid') return;
+        const code = block.textContent;
+        const div = document.createElement('div');
+        div.className = 'mermaid';
+        div.id = 'mermaid-' + (mid++);
+        try {
+          window.mermaid.render(div.id + '-svg', code).then(result => {
+            div.innerHTML = result.svg;
+            pre.replaceWith(div);
+          });
+        } catch (e) {}
+      });
+    });
+  }
+
   // ─── Front-matter Parser ───
   function extractFrontMatter(md) {
     const match = md.match(/^---\s*\n([\s\S]*?)\n---\s*\n/);
@@ -1149,6 +1196,8 @@
     html = processAlerts(html);
     html = DOMPurify.sanitize(html, PURIFY_CONFIG);
     preview.innerHTML = frontMatterHtml + html + footnotesHtml;
+
+    renderMermaidBlocks();
 
     buildToc();
     updateStats(md);
@@ -1242,6 +1291,12 @@
     iconMoon.style.display = isDark ? '' : 'none';
     document.getElementById('hljs-light').disabled = isDark;
     document.getElementById('hljs-dark').disabled  = !isDark;
+    // Re-init mermaid theme if loaded
+    if (mermaidReady) {
+      window.mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', securityLevel: 'strict' });
+      render();
+    }
+
     localStorage.setItem('md-viewer-theme', theme);
   }
 
