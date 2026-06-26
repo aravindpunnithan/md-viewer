@@ -601,6 +601,46 @@
   .md-alert-caution { border-color: #f85149; background: rgba(248,81,73,.07); }
   .md-alert-caution .md-alert-title { color: #f85149; }
 
+  /* ───────── Highlight Theme Picker ───────── */
+  .theme-picker-wrap {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .theme-dropdown {
+    display: none;
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow-lg);
+    z-index: 200;
+    min-width: 140px;
+    padding: 4px;
+  }
+
+  .theme-dropdown.open { display: block; }
+
+  .theme-option {
+    display: block;
+    width: 100%;
+    padding: 6px 10px;
+    font-size: .78rem;
+    color: var(--text-muted);
+    background: transparent;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition: all .15s;
+  }
+
+  .theme-option:hover { color: var(--text); background: var(--bg-surface); }
+  .theme-option.active { color: var(--accent); font-weight: 500; }
+
   /* ───────── Toast ───────── */
   .toast {
     position: fixed;
@@ -831,6 +871,19 @@
       <svg viewBox="0 0 24 24"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
       Open
     </button>
+
+    <!-- Syntax theme picker -->
+    <div class="theme-picker-wrap">
+      <button class="btn btn-icon" id="btnHljsTheme" title="Code theme">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+      </button>
+      <div class="theme-dropdown" id="hljsDropdown">
+        <button class="theme-option active" data-theme-light="github" data-theme-dark="github-dark">GitHub</button>
+        <button class="theme-option" data-theme-light="atom-one-light" data-theme-dark="atom-one-dark">Atom One</button>
+        <button class="theme-option" data-theme-light="github" data-theme-dark="monokai">Monokai</button>
+        <button class="theme-option" data-theme-light="github" data-theme-dark="nord">Nord</button>
+      </div>
+    </div>
 
     <!-- Copy rendered HTML -->
     <button class="btn btn-icon" id="btnCopyHtml" title="Copy rendered HTML">
@@ -1289,8 +1342,9 @@
     const isDark = theme === 'dark';
     iconSun.style.display  = isDark ? 'none' : '';
     iconMoon.style.display = isDark ? '' : 'none';
-    document.getElementById('hljs-light').disabled = isDark;
-    document.getElementById('hljs-dark').disabled  = !isDark;
+    const savedHljsDark = localStorage.getItem('md-viewer-hljs-theme-dark') || 'github-dark';
+    const savedHljsLight = localStorage.getItem('md-viewer-hljs-theme') || 'github';
+    applyHljsTheme(isDark ? savedHljsDark : savedHljsLight, isDark);
     // Re-init mermaid theme if loaded
     if (mermaidReady) {
       window.mermaid.initialize({ startOnLoad: false, theme: isDark ? 'dark' : 'default', securityLevel: 'strict' });
@@ -1458,6 +1512,45 @@
       setTimeout(() => { btn.innerHTML = original; }, 1800);
     });
   };
+
+  // ─── Syntax Highlight Theme Switcher ───
+  const btnHljsTheme = document.getElementById('btnHljsTheme');
+  const hljsDropdown = document.getElementById('hljsDropdown');
+  const hljsLight = document.getElementById('hljs-light');
+  const hljsDark = document.getElementById('hljs-dark');
+
+  function applyHljsTheme(name, isDark) {
+    const base = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
+    if (isDark) {
+      hljsDark.href = base + name + '.min.css';
+      hljsDark.disabled = false;
+      hljsLight.disabled = true;
+    } else {
+      hljsLight.href = base + name + '.min.css';
+      hljsLight.disabled = false;
+      hljsDark.disabled = true;
+    }
+  }
+
+  btnHljsTheme.addEventListener('click', e => {
+    e.stopPropagation();
+    hljsDropdown.classList.toggle('open');
+  });
+
+  document.addEventListener('click', () => hljsDropdown.classList.remove('open'));
+
+  hljsDropdown.addEventListener('click', e => {
+    const opt = e.target.closest('.theme-option');
+    if (!opt) return;
+    hljsDropdown.querySelectorAll('.theme-option').forEach(o => o.classList.remove('active'));
+    opt.classList.add('active');
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const themeName = isDark ? opt.dataset.themeDark : opt.dataset.themeLight;
+    applyHljsTheme(themeName, isDark);
+    hljsDropdown.classList.remove('open');
+    localStorage.setItem('md-viewer-hljs-theme', opt.dataset.themeLight);
+    localStorage.setItem('md-viewer-hljs-theme-dark', opt.dataset.themeDark);
+  });
 
   // ─── Toast helper ───
   const toastEl = document.getElementById('toast');
