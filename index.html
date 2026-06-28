@@ -783,13 +783,18 @@
   .zen-mode .toc-sidebar,
   .zen-mode .divider,
   .zen-mode .panel.preview-panel,
-  .zen-mode .panel-label { display: none !important; }
+  .zen-mode .panel-label,
+  .zen-mode .fmt-bar { display: none !important; }
 
   .zen-mode .panel.editor-panel { flex: 1 !important; }
 
+  .zen-mode .editor-wrap {
+    display: flex;
+    justify-content: center;
+  }
+
   .zen-mode #editor {
     max-width: 680px;
-    margin: 0 auto;
     padding: 48px 24px;
     font-size: 1rem;
     line-height: 1.8;
@@ -810,11 +815,12 @@
     border-radius: 6px;
     cursor: pointer;
     opacity: 0;
-    transition: opacity .3s;
+    transition: opacity .4s;
   }
 
-  .zen-mode .zen-exit { display: block; }
-  .zen-exit:hover, .zen-mode:hover .zen-exit { opacity: 1; }
+  .zen-mode .zen-exit { display: block; opacity: 0; }
+  .zen-exit:hover { opacity: 1; }
+  .zen-mode.zen-reveal .zen-exit { opacity: .6; }
 
   /* Print styles */
   @media print {
@@ -1637,10 +1643,28 @@
   // ─── Zen Mode ───
   const btnZen = document.getElementById('btnZen');
   const zenExit = document.getElementById('zenExit');
+  let zenRevealTimer;
 
   function toggleZen(on) {
     document.body.classList.toggle('zen-mode', on);
+    if (on) {
+      editor.focus();
+      // Brief reveal so user sees the exit button
+      document.body.classList.add('zen-reveal');
+      clearTimeout(zenRevealTimer);
+      zenRevealTimer = setTimeout(() => document.body.classList.remove('zen-reveal'), 2000);
+    } else {
+      document.body.classList.remove('zen-reveal');
+    }
   }
+
+  // Show exit button briefly on mouse movement in zen mode
+  document.addEventListener('mousemove', () => {
+    if (!document.body.classList.contains('zen-mode')) return;
+    document.body.classList.add('zen-reveal');
+    clearTimeout(zenRevealTimer);
+    zenRevealTimer = setTimeout(() => document.body.classList.remove('zen-reveal'), 1500);
+  });
 
   btnZen.addEventListener('click', () => toggleZen(true));
   zenExit.addEventListener('click', () => toggleZen(false));
