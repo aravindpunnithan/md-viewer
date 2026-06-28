@@ -1011,6 +1011,8 @@
   const btnTheme   = document.getElementById('btnTheme');
   const iconSun    = document.getElementById('iconSun');
   const iconMoon   = document.getElementById('iconMoon');
+  const hljsLight  = document.getElementById('hljs-light');
+  const hljsDark   = document.getElementById('hljs-dark');
 
   // ─── State ───
   let currentView = 'split'; // 'editor' | 'split' | 'preview'
@@ -1516,8 +1518,6 @@
   // ─── Syntax Highlight Theme Switcher ───
   const btnHljsTheme = document.getElementById('btnHljsTheme');
   const hljsDropdown = document.getElementById('hljsDropdown');
-  const hljsLight = document.getElementById('hljs-light');
-  const hljsDark = document.getElementById('hljs-dark');
 
   function applyHljsTheme(name, isDark) {
     const base = 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/';
@@ -1693,6 +1693,54 @@
       btnToc.click();
     }
   });
+
+  // ─── Image Drop/Paste into Editor ───
+  const MAX_IMG_EMBED = 200 * 1024;
+
+  editor.addEventListener('paste', e => {
+    const items = e.clipboardData && e.clipboardData.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf('image/') === 0) {
+        e.preventDefault();
+        handleImageFile(items[i].getAsFile());
+        return;
+      }
+    }
+  });
+
+  editor.addEventListener('drop', e => {
+    const file = e.dataTransfer && e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleImageFile(file);
+    }
+  });
+
+  function handleImageFile(file) {
+    if (!file) return;
+    const name = file.name || 'image.png';
+    if (file.size > MAX_IMG_EMBED) {
+      insertAtCursor('![' + name + '](' + name + ')');
+      showToast('Image too large to embed (' + Math.round(file.size / 1024) + 'KB). Placeholder added.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = ev => {
+      insertAtCursor('![' + name + '](' + ev.target.result + ')');
+      showToast('Image embedded as base64');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function insertAtCursor(text) {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + text + editor.value.substring(editor.selectionEnd);
+    editor.selectionStart = editor.selectionEnd = start + text.length;
+    editor.focus();
+    debouncedRender();
+  }
 
   // ─── Helper ───
   function escapeHtml(str) {
