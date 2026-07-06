@@ -865,6 +865,11 @@
 
     <div style="width:1px;height:20px;background:var(--border);margin:0 4px"></div>
 
+    <!-- Scroll sync toggle -->
+    <button class="btn btn-icon active" id="btnScrollSync" title="Scroll sync">
+      <svg viewBox="0 0 24 24"><path d="M8 3l4 4 4-4"/><path d="M8 21l4-4 4 4"/><line x1="12" y1="7" x2="12" y2="17"/></svg>
+    </button>
+
     <!-- TOC toggle -->
     <button class="btn btn-icon" id="btnToc" title="Table of contents">
       <svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
@@ -1336,10 +1341,23 @@
   }
 
   // ─── Scroll Sync ───
-  editor.addEventListener('scroll', () => {
-    if (!scrollSyncEnabled || currentView !== 'split') return;
-    const pct = editor.scrollTop / (editor.scrollHeight - editor.clientHeight || 1);
-    previewWrap.scrollTop = pct * (previewWrap.scrollHeight - previewWrap.clientHeight);
+  const btnScrollSync = document.getElementById('btnScrollSync');
+  let syncSource = null;
+
+  function syncScroll(source, target) {
+    if (!scrollSyncEnabled || currentView !== 'split' || syncSource === target) return;
+    syncSource = source;
+    const pct = source.scrollTop / (source.scrollHeight - source.clientHeight || 1);
+    target.scrollTop = pct * (target.scrollHeight - target.clientHeight);
+    requestAnimationFrame(() => { syncSource = null; });
+  }
+
+  editor.addEventListener('scroll', () => syncScroll(editor, previewWrap));
+  previewWrap.addEventListener('scroll', () => syncScroll(previewWrap, editor));
+
+  btnScrollSync.addEventListener('click', () => {
+    scrollSyncEnabled = !scrollSyncEnabled;
+    btnScrollSync.classList.toggle('active', scrollSyncEnabled);
   });
 
   // ─── Theme ───
