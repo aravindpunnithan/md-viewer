@@ -224,7 +224,32 @@
     color: var(--text-muted);
     display: flex;
     gap: 12px;
+    align-items: center;
   }
+
+  .word-goal {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+  }
+
+  .word-goal-bar {
+    width: 48px;
+    height: 5px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .word-goal-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 3px;
+    transition: width .3s;
+  }
+
+  .word-goal-fill.complete { background: #34a853; }
 
   /* ───────── Layout ───────── */
   .main {
@@ -1331,13 +1356,39 @@
 
   previewWrap.addEventListener('scroll', updateActiveToc);
 
-  // ─── Stats ───
+  // ─── Stats & Word Goal ───
+  let wordGoal = parseInt(localStorage.getItem('md-viewer-word-goal')) || 0;
+
   function updateStats(md) {
     const text = md.replace(/[#*`~\[\]()>_\-|]/g, '').trim();
     const words = text ? text.split(/\s+/).length : 0;
     const chars = text.length;
     const readMin = Math.max(1, Math.ceil(words / 230));
-    statsEl.innerHTML = `<span>${words} words</span><span>${chars} chars</span><span>${readMin} min read</span>`;
+    let goalHtml = '';
+    if (wordGoal > 0) {
+      const pct = Math.min(100, Math.round((words / wordGoal) * 100));
+      const complete = pct >= 100 ? ' complete' : '';
+      goalHtml = `<span class="word-goal" id="wordGoalDisplay" title="Click to change goal (${words}/${wordGoal})"><span class="word-goal-bar"><span class="word-goal-fill${complete}" style="width:${pct}%"></span></span>${pct}%</span>`;
+    } else {
+      goalHtml = `<span class="word-goal" id="wordGoalDisplay" title="Click to set word goal"></span>`;
+    }
+    statsEl.innerHTML = `<span>${words} words</span>${goalHtml}<span>${chars} chars</span><span>${readMin} min read</span>`;
+    // Re-attach click listener
+    const goalEl = document.getElementById('wordGoalDisplay');
+    if (goalEl) goalEl.addEventListener('click', promptWordGoal);
+  }
+
+  function promptWordGoal() {
+    const input = prompt('Set word-count goal (0 to clear):', wordGoal || '');
+    if (input === null) return;
+    const val = parseInt(input) || 0;
+    wordGoal = Math.max(0, val);
+    if (wordGoal > 0) {
+      localStorage.setItem('md-viewer-word-goal', wordGoal);
+    } else {
+      localStorage.removeItem('md-viewer-word-goal');
+    }
+    render();
   }
 
   // ─── Scroll Sync ───
