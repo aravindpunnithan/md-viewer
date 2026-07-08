@@ -332,6 +332,33 @@
   .toc-item[data-level="5"] { padding-left: 56px; font-size: .73rem; }
   .toc-item[data-level="6"] { padding-left: 66px; font-size: .73rem; }
 
+  .toc-item.has-children { position: relative; padding-right: 22px; }
+
+  .toc-toggle {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    font-size: .6rem;
+    opacity: 0;
+    transition: opacity .15s, transform .15s;
+  }
+
+  .toc-item.has-children:hover .toc-toggle { opacity: .7; }
+  .toc-toggle:hover { opacity: 1 !important; }
+  .toc-item.collapsed .toc-toggle { transform: translateY(-50%) rotate(-90deg); opacity: .5; }
+  .toc-item.toc-collapsed { display: none; }
+
   /* ───────── Split Panels ───────── */
   .panels {
     flex: 1;
@@ -1298,6 +1325,8 @@
   }
 
   // ─── TOC ───
+  const tocCollapsed = new Set();
+
   function buildToc() {
     const headings = preview.querySelectorAll('h1, h2, h3, h4, h5, h6');
     tocList.innerHTML = '';
@@ -1305,26 +1334,67 @@
     let minLevel = 6;
     headings.forEach(h => { minLevel = Math.min(minLevel, parseInt(h.tagName[1])); });
 
-    headings.forEach(h => {
+    // First pass: build items array to determine which have children
+    const items = [];
+    headings.forEach((h, i) => {
       const level = parseInt(h.tagName[1]);
       const idx = level - 1;
       counters[idx]++;
-      for (let i = idx + 1; i < 6; i++) counters[i] = 0;
+      for (let j = idx + 1; j < 6; j++) counters[j] = 0;
 
       let number = '';
       if (tocNumbered) {
         const parts = [];
-        for (let i = minLevel - 1; i <= idx; i++) parts.push(counters[i] || 1);
+        for (let j = minLevel - 1; j <= idx; j++) parts.push(counters[j] || 1);
         number = parts.join('.') + ' ';
       }
 
+      items.push({ heading: h, level, number, text: h.textContent, id: h.id || i });
+    });
+
+    // Determine which items have children (a lower-level item follows)
+    items.forEach((it, i) => {
+      it.hasChildren = (i < items.length - 1 && items[i + 1].level > it.level);
+    });
+
+    // Second pass: render with collapse state
+    items.forEach((it, i) => {
       const item = document.createElement('a');
       item.className = 'toc-item';
-      item.dataset.level = level;
-      item.textContent = number + h.textContent;
-      item.title = h.textContent;
+      item.dataset.level = it.level;
+      item.textContent = it.number + it.text;
+      item.title = it.text;
+
+      // Check if any ancestor is collapsed
+      let hidden = false;
+      for (let j = i - 1; j >= 0; j--) {
+        if (items[j].level < it.level) {
+          if (tocCollapsed.has(items[j].id)) { hidden = true; break; }
+          if (items[j].level <= minLevel) break;
+        }
+      }
+      if (hidden) item.classList.add('toc-collapsed');
+
+      if (it.hasChildren) {
+        item.classList.add('has-children');
+        if (tocCollapsed.has(it.id)) item.classList.add('collapsed');
+        const toggle = document.createElement('button');
+        toggle.className = 'toc-toggle';
+        toggle.innerHTML = '&#9660;';
+        toggle.addEventListener('click', e => {
+          e.stopPropagation();
+          if (tocCollapsed.has(it.id)) {
+            tocCollapsed.delete(it.id);
+          } else {
+            tocCollapsed.add(it.id);
+          }
+          buildToc();
+        });
+        item.appendChild(toggle);
+      }
+
       item.addEventListener('click', () => {
-        h.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        it.heading.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       tocList.appendChild(item);
     });
